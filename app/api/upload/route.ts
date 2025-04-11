@@ -1,9 +1,17 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { join } from "path"
 import { Open } from "unzipper"
+import { execSync } from "node:child_process"
 
 export async function POST(request: NextRequest) {
     try {
+        const PROJECTS_ROOT_DIR = process.env.PROJECTS_ROOT_DIR!
+        const CONFIG_COMMAND = process.env.CONFIG_COMMAND!
+        const SANITIZE_COMMAND = process.env.SANITIZE_COMMAND!
+
+        console.log(
+            PROJECTS_ROOT_DIR, CONFIG_COMMAND, SANITIZE_COMMAND
+        )
+
         const formData = await request.formData()
         const file = formData.get("file") as File
 
@@ -17,14 +25,20 @@ export async function POST(request: NextRequest) {
         }
 
         // Create a unique filename
-        const timestamp = new Date().getTime()
-        const filename = `${timestamp}-${file.name}`
+        const filename = file.name
 
         // Convert file to buffer and save it
         const bytes = await file.arrayBuffer()
         const buffer = Buffer.from(bytes)
         const directory = await Open.buffer(buffer);
-        await directory.extract({ path: join(process.cwd(), "../") })
+        await directory.extract({ path: PROJECTS_ROOT_DIR })
+
+        try {
+            execSync(SANITIZE_COMMAND)
+            execSync(CONFIG_COMMAND)
+        } catch (error) {
+            console.error("Error reloading config:", error)
+        }
 
         return NextResponse.json({ success: true, filename })
     } catch (error) {
